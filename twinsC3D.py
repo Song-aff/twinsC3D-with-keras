@@ -1,122 +1,112 @@
 import tensorflow as tf
-import img_input
 import os
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # or any {'0', '1', '3'}
+import train
 
 keras = tf.keras
 layers = keras.layers
 models = keras.models
 optimizers = keras.optimizers
+SGD = optimizers.SGD
 Input = keras.Input
 Model = keras.Model
 Callbacks = keras.callbacks  # 回调函数
 plot_model = keras.utils.plot_model
 regularizers = keras.regularizers
+l2 = regularizers.l2
+
+Dense = layers.Dense
+Dropout = layers.Dropout
+Conv3D = layers.Conv3D
+Input = layers.Input
+MaxPool3D = layers.MaxPool3D
+Flatten = layers.Flatten
+Activation = layers.Activation
+
+
 board_path = 'board'
-
-class_num = 20
-
-Callbacks_list = [
-    # Callbacks.EarlyStopping(monitor='acc',patience=5),
-    Callbacks.ModelCheckpoint(
-        filepath='my_model.h5', monitor='val-acc', save_best_only=True, mode='max'),
-    Callbacks.TensorBoard(log_dir=board_path, histogram_freq=1)
-]  # 回调函数配置
-
+weight_decay = 0.005
 
 # 网络配置
 # 卷积层（孪生层）
-def vgg_16_base(input_tensor):
-    #input_tensor = Input(shape=(200, 100,3))
-    x = layers.Conv2D(32, (3, 3), activation='relu',
-                      input_shape=(200, 100, 3))(input_tensor)
-    x = layers.MaxPooling2D((2, 2))(x)
-    x = layers.Conv2D(64, (3, 3), activation='relu')(x)
-    x = layers.MaxPooling2D((2, 2))(x)
-    x = layers.Conv2D(128, (3, 3), activation='relu')(x)
-    x = layers.MaxPooling2D((2, 2))(x)
-    x = layers.Conv2D(128, (3, 3), activation='relu')(x)
-    x = layers.MaxPooling2D((2, 2))(x)
-    out_tensor = layers.Flatten()(x)
+
+
+def c3d_model(input_shape):
+    x = Conv3D(64, (3, 3, 3), strides=(1, 1, 1), padding='same',
+               activation='relu', kernel_regularizer=l2(weight_decay))(input_shape)
+    x = MaxPool3D((2, 2, 1), strides=(2, 2, 1), padding='same')(x)
+
+    x = Conv3D(128, (3, 3, 3), strides=(1, 1, 1), padding='same',
+               activation='relu', kernel_regularizer=l2(weight_decay))(x)
+    x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
+
+    x = Conv3D(128, (3, 3, 3), strides=(1, 1, 1), padding='same',
+               activation='relu', kernel_regularizer=l2(weight_decay))(x)
+    x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
+
+    x = Conv3D(256, (3, 3, 3), strides=(1, 1, 1), padding='same',
+               activation='relu', kernel_regularizer=l2(weight_decay))(x)
+    x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
+
+    x = Conv3D(256, (3, 3, 3), strides=(1, 1, 1), padding='same',
+               activation='relu', kernel_regularizer=l2(weight_decay))(x)
+    x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
+
+    out_tensor = Flatten()(x)
     return out_tensor
 
 
-# Cnn_layers = Model(input_tensor, out_tensor)
+BATCH_SIZE = 10
+CLIP_LENGTH = 16
+CROP_SZIE = 112
+CHANNEL_NUM = 3
+input_shape = (112, 112, 16, 3)
 
-
-# def vgg_16_base(input_tensor):
-#     # net = layers.Conv2D(1,(1,1),activation='relu',padding='same',input_shape=(200, 100,3))(input_tensor)
-#     net = layers.Conv2D(64,(3,3),activation='relu',padding='same',input_shape=(200, 100,3))(input_tensor)
-#     net = layers.Conv2D(64,(3,3),activation='relu',padding='same')(net)
-#     net = layers.MaxPooling2D((2,2),strides=(2,2))(net)
-
-#     net = layers.Conv2D(128,(3,3),activation='relu',padding='same')(net)
-#     net = layers.Conv2D(128,(3,3),activation='relu',padding='same')(net)
-#     net= layers.MaxPooling2D((2,2),strides=(2,2))(net)
-
-#     net = layers.Conv2D(256,(3,3),activation='relu',padding='same')(net)
-#     net = layers.Conv2D(256,(3,3),activation='relu',padding='same')(net)
-#     net = layers.Conv2D(256,(3,3),activation='relu',padding='same')(net)
-#     net = layers.MaxPooling2D((2,2),strides=(2,2))(net)
-
-#     net = layers.Conv2D(512,(3,3),activation='relu',padding='same')(net)
-#     net = layers.Conv2D(512,(3,3),activation='relu',padding='same')(net)
-#     net = layers.Conv2D(512,(3,3),activation='relu',padding='same')(net)
-#     net = layers.MaxPooling2D((2,2),strides=(2,2))(net)
-
-#     net = layers.Conv2D(512,(3,3),activation='relu',padding='same')(net)
-#     net = layers.Conv2D(512,(3,3),activation='relu',padding='same')(net)
-#     net = layers.Conv2D(512,(3,3),activation='relu',padding='same')(net)
-#     net = layers.MaxPooling2D((2,2),strides=(2,2))(net)
-#     net = layers.Flatten()(net)
-#     return net
-
-
-input_tensor = Input(shape=(200, 100, 3))
-Cnn_layers = Model(input_tensor, vgg_16_base(input_tensor))
-
-# 三输入
-left_input = Input(shape=(200, 100, 3))
+input_tensor = Input(shape=(CROP_SZIE,
+                            CROP_SZIE, CLIP_LENGTH, CHANNEL_NUM))
+Cnn_layers = Model(input_tensor, c3d_model(input_tensor))
+# 双输入
+left_input = Input(shape=(CROP_SZIE,
+                          CROP_SZIE, CLIP_LENGTH, CHANNEL_NUM))
 left_out = Cnn_layers(left_input)
-
-right_input = Input(shape=(200, 100, 3))
+right_input = Input(shape=(CROP_SZIE,
+                           CROP_SZIE, CLIP_LENGTH, CHANNEL_NUM))
 right_out = Cnn_layers(right_input)
 
-dif_input = Input(shape=(200, 100, 3))
-dif_out = Cnn_layers(dif_input)
-
 # 融合特征+全连接
-merged = layers.concatenate([left_out, right_out, dif_out])
-merged = layers.Dense(512, activation='relu',
-                      kernel_regularizer=regularizers.l2(0.001))(merged)
-merged = layers.Dropout(0.5)(merged)
-merged = layers.Dense(512, activation='relu')(merged)
-merged = layers.Dropout(0.5)(merged)
-merged = layers.Dense(512, activation='relu')(merged)
-merged = layers.Dropout(0.5)(merged)
-predictions = layers.Dense(class_num, activation='softmax')(merged)
-model = Model([left_input, right_input, dif_input], predictions, name='out')
+merged = layers.concatenate([left_out, right_out])
+merged = Dense(4096, activation='relu',
+               kernel_regularizer=l2(weight_decay))(merged)
+merged = Dropout(0.5)(merged)
+merged = Dense(4096, activation='relu',
+               kernel_regularizer=l2(weight_decay))(merged)
+merged = Dropout(0.5)(merged)
+predictions = Dense(1, activation='sigmoid')(merged)
+model = Model([left_input, right_input], predictions, name='out')
 
-model.summary()
-model.compile(
-    loss='categorical_crossentropy',
-    optimizer='sgd',
-    metrics=['acc'])
-
+# model.compile(
+#     loss='categorical_crossentropy',
+#     optimizer='sgd',
+#     metrics=['acc'])
+# model.summary()
 
 if __name__ == "__main__":
+    lr = 0.005
+    sgd = SGD(lr=lr, momentum=0.9, nesterov=True)
+    model.compile(loss='sparse_categorical_crossentropy',
+                  optimizer=sgd, metrics=['accuracy'])
+    model.summary()
     # 绘制网络结构图
     plot_model(Cnn_layers, show_shapes=True, to_file='Cnn_layers.png')
     plot_model(model, show_shapes=True, to_file='model.png')
-
     # 训练
-    history = model.fit_generator(img_input.my_generator(1, 85000, class_num=class_num),
-                                  steps_per_epoch=4000,
+    history = model.fit_generator(train.generator_train_batch(2),
+                                  steps_per_epoch=200,
                                   epochs=200,
-                                  validation_data=img_input.my_generator(
-                                      85001, 86000, class_num=class_num),
-                                  validation_steps=20,
-                                  callbacks=Callbacks_list)
+                                  validation_data=train.generator_train_batch(
+                                      2),
+                                  validation_steps=2)
+
+
 # # 训练样品处理
 # ImageDataGenerator = keras.preprocessing.image.ImageDataGenerator
 
