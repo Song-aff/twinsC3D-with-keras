@@ -36,4 +36,10 @@ if __name__ == "__main__":
     #                                            validation_data=dataProcess.generator_validation_batch(
     #     BATCH_SIZE),
     #     validation_steps=BATCH_SIZE, callbacks=twinsC3DMode.Callbacks_list)
- 
+    generator = dataProcess.generator_validation_batch(10)
+    generator_data = next(generator)
+    data_input, lable = generator_data[0], generator_data[1]
+    twinsC3DMode.model.load_weights('my_model.h5')
+    preds_a = twinsC3DMode.model.predict(
+        data_input)
+    print(preds_a, lable)
