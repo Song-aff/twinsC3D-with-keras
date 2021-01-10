@@ -1,6 +1,4 @@
 import tensorflow as tf
-import os
-import train
 
 keras = tf.keras
 layers = keras.layers
@@ -9,7 +7,7 @@ optimizers = keras.optimizers
 SGD = optimizers.SGD
 Input = keras.Input
 Model = keras.Model
-Callbacks = keras.callbacks  # 回调函数
+Callbacks = keras.callbacks  # 回调函数 用于tensorborad
 plot_model = keras.utils.plot_model
 regularizers = keras.regularizers
 l2 = regularizers.l2
@@ -25,9 +23,24 @@ Activation = layers.Activation
 
 board_path = 'board'
 weight_decay = 0.005
+Batch = 20
+
+Callbacks_list = [
+    # Callbacks.EarlyStopping(monitor='acc',patience=5),
+    Callbacks.ModelCheckpoint(
+        filepath='my_model.h5', monitor='val-acc', save_best_only=True, mode='max'),
+    Callbacks.TensorBoard(log_dir=board_path,
+                          histogram_freq=1, embeddings_freq=1,)
+]  # 回调函数配置
 
 # 网络配置
 # 卷积层（孪生层）
+
+BATCH_SIZE = 1
+EPOCHS_NUM = 50
+CLIP_LENGTH = 16
+CROP_SZIE = 112
+CHANNEL_NUM = 3
 
 
 def c3d_model(input_shape):
@@ -39,15 +52,25 @@ def c3d_model(input_shape):
                activation='relu', kernel_regularizer=l2(weight_decay))(x)
     x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
 
-    x = Conv3D(128, (3, 3, 3), strides=(1, 1, 1), padding='same',
-               activation='relu', kernel_regularizer=l2(weight_decay))(x)
-    x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
+    # x = Conv3D(128, (3, 3, 3), strides=(1, 1, 1), padding='same',
+    #            activation='relu', kernel_regularizer=l2(weight_decay))(x)
+    # x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
 
+    x = Conv3D(256, (3, 3, 3), strides=(1, 1, 1), padding='same',
+               activation='relu', kernel_regularizer=l2(weight_decay))(x)
     x = Conv3D(256, (3, 3, 3), strides=(1, 1, 1), padding='same',
                activation='relu', kernel_regularizer=l2(weight_decay))(x)
     x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
 
-    x = Conv3D(256, (3, 3, 3), strides=(1, 1, 1), padding='same',
+    x = Conv3D(512, (3, 3, 3), strides=(1, 1, 1), padding='same',
+               activation='relu', kernel_regularizer=l2(weight_decay))(x)
+    x = Conv3D(512, (3, 3, 3), strides=(1, 1, 1), padding='same',
+               activation='relu', kernel_regularizer=l2(weight_decay))(x)
+    x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
+
+    x = Conv3D(512, (3, 3, 3), strides=(1, 1, 1), padding='same',
+               activation='relu', kernel_regularizer=l2(weight_decay))(x)
+    x = Conv3D(512, (3, 3, 3), strides=(1, 1, 1), padding='same',
                activation='relu', kernel_regularizer=l2(weight_decay))(x)
     x = MaxPool3D((2, 2, 2), strides=(2, 2, 2), padding='same')(x)
 
@@ -55,10 +78,6 @@ def c3d_model(input_shape):
     return out_tensor
 
 
-BATCH_SIZE = 10
-CLIP_LENGTH = 16
-CROP_SZIE = 112
-CHANNEL_NUM = 3
 input_shape = (112, 112, 16, 3)
 
 input_tensor = Input(shape=(CROP_SZIE,
@@ -82,46 +101,3 @@ merged = Dense(4096, activation='relu',
 merged = Dropout(0.5)(merged)
 predictions = Dense(1, activation='sigmoid')(merged)
 model = Model([left_input, right_input], predictions, name='out')
-
-# model.compile(
-#     loss='categorical_crossentropy',
-#     optimizer='sgd',
-#     metrics=['acc'])
-# model.summary()
-
-if __name__ == "__main__":
-    lr = 0.005
-    sgd = SGD(lr=lr, momentum=0.9, nesterov=True)
-    model.compile(loss='sparse_categorical_crossentropy',
-                  optimizer=sgd, metrics=['accuracy'])
-    model.summary()
-    # 绘制网络结构图
-    plot_model(Cnn_layers, show_shapes=True, to_file='Cnn_layers.png')
-    plot_model(model, show_shapes=True, to_file='model.png')
-    # 训练
-    history = model.fit_generator(train.generator_train_batch(2),
-                                  steps_per_epoch=200,
-                                  epochs=200,
-                                  validation_data=train.generator_train_batch(
-                                      2),
-                                  validation_steps=2)
-
-
-# # 训练样品处理
-# ImageDataGenerator = keras.preprocessing.image.ImageDataGenerator
-
-# train_datagen = ImageDataGenerator(rescale=1. / 255)
-# train_generator = train_datagen.flow_from_directory(
-#     'C:/Users/Song/Desktop/week/keras_test/kaggle/train_dir',
-#     target_size=(150, 150),
-#     batch_size=20,
-#     class_mode='binary')
-# validation_datagen = ImageDataGenerator(rescale=1. / 255)
-# validation_generator = train_datagen.flow_from_directory(
-#     'C:/Users/Song/Desktop/week/keras_test/kaggle/validation_dir',
-#     target_size=(150, 150),
-#     batch_size=20,
-#     class_mode='binary')
-
-
-# model.save('cat_and_dog_2.h5')
